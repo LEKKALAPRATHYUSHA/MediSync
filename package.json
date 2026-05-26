@@ -1,4 +1,11 @@
 {
+  "name": "medisync",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
+    "start": "cd backend && node app.js"
+  },
   "dependencies": {
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1"
