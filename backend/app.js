@@ -62,10 +62,10 @@ app.use((err, req, res, next) => {
 // ========================
 // START SERVER
 // ========================
-//const PORT = process.env.PORT || 5000
-//app.listen(PORT, () => {
-//  console.log(`MediSync server running on port ${PORT}`)
-//})
+const PORT = process.env.PORT || 5000
+app.listen(PORT, () => {
+  console.log(`MediSync server running on port ${PORT}`)
+})
 
 module.exports = app
 
