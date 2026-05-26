@@ -1,7 +1,6 @@
 require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
-const path = require('path')
 
 const app = express()
 
@@ -43,15 +42,6 @@ app.use('/api/patient-records', patientRecordRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 
 // ========================
-// FRONTEND STATIC FILES
-// ========================
-app.use(express.static(path.join(__dirname, '../frontend/dist')))
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
-})
-
-// ========================
 // HEALTH CHECK
 // ========================
 app.get('/', (req, res) => {
@@ -72,10 +62,10 @@ app.use((err, req, res, next) => {
 // ========================
 // START SERVER
 // ========================
-const PORT = process.env.PORT || 5000
-
-app.listen(PORT, () => {
-  console.log(`MediSync server running on port ${PORT}`)
-})
+//const PORT = process.env.PORT || 5000
+//app.listen(PORT, () => {
+//  console.log(`MediSync server running on port ${PORT}`)
+//})
 
 module.exports = app
+
