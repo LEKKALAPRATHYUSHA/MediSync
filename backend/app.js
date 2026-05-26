@@ -4,31 +4,18 @@ const cors = require('cors')
 
 const app = express()
 
-// ========================
-// MIDDLEWARE
-// ========================
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
-
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// ========================
-// INIT DATABASE (SAFE FIX)
-// ========================
-// Only load if file exists (prevents crash)
-try {
-  require('./database/init')
-} catch (err) {
-  console.warn('Database init file not found, skipping DB init...')
-}
+// Init database - no try/catch so errors are visible
+require('./database/init')
 
-// ========================
-// ROUTES
-// ========================
+// Routes
 const authRoutes = require('./routes/authRoutes')
 const slotRoutes = require('./routes/slotRoutes')
 const appointmentRoutes = require('./routes/appointmentRoutes')
@@ -41,31 +28,18 @@ app.use('/api/appointments', appointmentRoutes)
 app.use('/api/patient-records', patientRecordRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 
-// ========================
-// HEALTH CHECK
-// ========================
 app.get('/', (req, res) => {
   res.json({ message: 'MediSync API is running' })
 })
 
-// ========================
-// ERROR HANDLER
-// ========================
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({
-    message: 'Internal Server Error',
-    error: err.message
-  })
+  res.status(500).json({ message: 'Internal Server Error', error: err.message })
 })
 
-// ========================
-// START SERVER
-// ========================
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => {
   console.log(`MediSync server running on port ${PORT}`)
 })
 
 module.exports = app
-
