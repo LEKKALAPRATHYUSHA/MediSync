@@ -1,154 +1,49 @@
 const db = require('../database/db')
 
-// ====================================
-// DASHBOARD SUMMARY
-// ====================================
 const getDashboardSummary = (req, res) => {
+  const summary = {}
 
-  const dashboardData = {}
+  db.get('SELECT COUNT(*) AS total FROM appointments', [], (err, r1) => {
+    if (err) return res.status(500).json({ message: 'DB error (appointments)' })
+    summary.totalAppointments = r1.total
 
-  // Total appointments
-  const totalAppointmentsQuery = `
-    SELECT COUNT(*) AS totalAppointments
-    FROM appointments
-  `
+    db.get("SELECT COUNT(*) AS total FROM appointments WHERE appointment_status = 'Completed'", [], (err2, r2) => {
+      if (err2) return res.status(500).json({ message: 'DB error (completed)' })
+      summary.completedAppointments = r2.total
 
-  db.get(totalAppointmentsQuery, [], (err, totalAppointmentsResult) => {
+      db.get("SELECT COUNT(*) AS total FROM appointments WHERE appointment_status = 'Cancelled'", [], (err3, r3) => {
+        if (err3) return res.status(500).json({ message: 'DB error (cancelled)' })
+        summary.cancelledAppointments = r3.total
 
-    if (err) {
-      return res.status(500).json({
-        message: 'Database error (appointments)'
-      })
-    }
+        db.get("SELECT COUNT(*) AS total FROM users WHERE role = 'doctor'", [], (err4, r4) => {
+          if (err4) return res.status(500).json({ message: 'DB error (doctors)' })
+          summary.totalDoctors = r4.total
 
-    dashboardData.totalAppointments =
-      totalAppointmentsResult.totalAppointments
-
-    // Completed appointments
-    const completedAppointmentsQuery = `
-      SELECT COUNT(*) AS completedAppointments
-      FROM appointments
-      WHERE appointment_status = 'Completed'
-    `
-
-    db.get(
-      completedAppointmentsQuery,
-      [],
-      (err, completedResult) => {
-
-        if (err) {
-          return res.status(500).json({
-            message: 'Database error (completed)'
-          })
-        }
-
-        dashboardData.completedAppointments =
-          completedResult.completedAppointments
-
-        // Cancelled appointments
-        const cancelledAppointmentsQuery = `
-          SELECT COUNT(*) AS cancelledAppointments
-          FROM appointments
-          WHERE appointment_status = 'Cancelled'
-        `
-
-        db.get(
-          cancelledAppointmentsQuery,
-          [],
-          (err, cancelledResult) => {
-
-            if (err) {
-              return res.status(500).json({
-                message: 'Database error (cancelled)'
-              })
-            }
-
-            dashboardData.cancelledAppointments =
-              cancelledResult.cancelledAppointments
-
-            // Total doctors
-            const totalDoctorsQuery = `
-              SELECT COUNT(*) AS totalDoctors
-              FROM users
-              WHERE role = 'doctor'
-            `
+          db.get("SELECT COUNT(*) AS total FROM users WHERE role = 'patient'", [], (err5, r5) => {
+            if (err5) return res.status(500).json({ message: 'DB error (patients)' })
+            summary.totalPatients = r5.total
 
             db.get(
-              totalDoctorsQuery,
+              `SELECT SUM(ds.consultation_fee) AS totalRevenue
+               FROM appointments a
+               JOIN doctor_slots ds ON a.slot_id = ds.id
+               WHERE a.appointment_status = 'Completed'`,
               [],
-              (err, doctorResult) => {
+              (err6, r6) => {
+                if (err6) return res.status(500).json({ message: 'DB error (revenue)' })
+                summary.totalRevenue = r6.totalRevenue || 0
 
-                if (err) {
-                  return res.status(500).json({
-                    message: 'Database error (doctors)'
-                  })
-                }
-
-                dashboardData.totalDoctors =
-                  doctorResult.totalDoctors
-
-                // Total patients
-                const totalPatientsQuery = `
-                  SELECT COUNT(*) AS totalPatients
-                  FROM users
-                  WHERE role = 'patient'
-                `
-
-                db.get(
-                  totalPatientsQuery,
-                  [],
-                  (err, patientResult) => {
-
-                    if (err) {
-                      return res.status(500).json({
-                        message: 'Database error (patients)'
-                      })
-                    }
-
-                    dashboardData.totalPatients =
-                      patientResult.totalPatients
-
-                    // Revenue summary
-                    const revenueQuery = `
-                      SELECT 
-                        SUM(doctor_slots.consultation_fee) AS totalRevenue
-                      FROM appointments
-                      INNER JOIN doctor_slots
-                      ON appointments.slot_id = doctor_slots.id
-                      WHERE appointments.appointment_status = 'Completed'
-                    `
-
-                    db.get(
-                      revenueQuery,
-                      [],
-                      (err, revenueResult) => {
-
-                        if (err) {
-                          return res.status(500).json({
-                            message: 'Database error (revenue)'
-                          })
-                        }
-
-                        dashboardData.totalRevenue =
-                          revenueResult.totalRevenue || 0
-
-                        return res.json({
-                          message: 'Dashboard summary fetched successfully',
-                          dashboard: dashboardData
-                        })
-                      }
-                    )
-                  }
-                )
+                return res.json({
+                  message: 'Dashboard summary fetched successfully',
+                  dashboard: summary
+                })
               }
             )
-          }
-        )
-      }
-    )
+          })
+        })
+      })
+    })
   })
 }
 
-module.exports = {
-  getDashboardSummary
-}
+module.exports = { getDashboardSummary }

@@ -1,8 +1,8 @@
 {
-  "name": "backend",
+  "name": "medisync-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "MediSync Healthcare Management System - Backend API",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js"
@@ -16,10 +16,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
-    "jspdf": "^4.2.1",
-    "multer": "^2.1.1",
     "pdfkit": "^0.18.0",
     "sqlite3": "^6.0.1"
   },

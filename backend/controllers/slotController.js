@@ -15,14 +15,14 @@ const createSlot = (req, res) => {
   } = req.body
 
   if (!doctor_id || !slot_date || !start_time || !end_time) {
-    return res.status(400).json({ message: 'Required fields missing' })
+    return res.status(400).json({ message: 'doctor_id, slot_date, start_time, and end_time are required' })
   }
 
   if (start_time >= end_time) {
     return res.status(400).json({ message: 'End time must be after start time' })
   }
 
-  // FIX: robust expired check using explicit date construction
+  // Parse date/time and validate it's in the future
   const [year, month, day] = slot_date.split('-').map(Number)
   const [hours, minutes] = start_time.split(':').map(Number)
   const slotDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0)
@@ -35,51 +35,56 @@ const createSlot = (req, res) => {
     return res.status(400).json({ message: 'Cannot create a slot in the past' })
   }
 
+  // If user is a doctor, enforce their own doctor_id
+  const effectiveDoctorId = (req.user && req.user.role === 'doctor')
+    ? req.user.id
+    : Number(doctor_id)
+
+  // Duplicate check
   const duplicateQuery = `
     SELECT * FROM doctor_slots
     WHERE doctor_id = ? AND slot_date = ? AND start_time = ? AND end_time = ?
   `
-
-  db.get(duplicateQuery, [doctor_id, slot_date, start_time, end_time], (err, existingSlot) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database error' })
-    }
+  db.get(duplicateQuery, [effectiveDoctorId, slot_date, start_time, end_time], (err, existingSlot) => {
+    if (err) return res.status(500).json({ message: 'Database error' })
     if (existingSlot) {
-      return res.status(400).json({ message: 'A slot already exists for this time' })
+      return res.status(400).json({ message: 'A slot already exists for this doctor at this time' })
     }
 
     const insertQuery = `
       INSERT INTO doctor_slots (
         doctor_id, specialization_id, slot_date, start_time, end_time,
         consultation_fee, max_patients, booked_count, status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'AVAILABLE')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'AVAILABLE')
     `
-
-    db.run(insertQuery, [
-      doctor_id,
-      specialization_id || null,
-      slot_date,
-      start_time,
-      end_time,
-      consultation_fee || 0,
-      max_patients || 1
-    ], function (err) {
-      if (err) {
-        console.log(err)
-        return res.status(500).json({ message: 'Failed to create slot' })
+    db.run(
+      insertQuery,
+      [
+        effectiveDoctorId,
+        specialization_id || null,
+        slot_date,
+        start_time,
+        end_time,
+        consultation_fee || 0,
+        max_patients || 1
+      ],
+      function (insertErr) {
+        if (insertErr) {
+          console.error('Slot insert error:', insertErr)
+          return res.status(500).json({ message: 'Failed to create slot' })
+        }
+        return res.status(201).json({ message: 'Slot created successfully', slot_id: this.lastID })
       }
-      return res.status(201).json({ message: 'Slot created successfully', slot_id: this.lastID })
-    })
+    )
   })
 }
 
 // =========================
-// GET ALL SLOTS (with doctor name)
+// GET ALL SLOTS
 // =========================
 const getSlots = (req, res) => {
-  const { doctor_id, specialization_id, slot_date, slot_status, page = 1, limit = 10 } = req.query
-  const offset = (page - 1) * limit
+  const { doctor_id, specialization_id, slot_date, slot_status, page = 1, limit = 20 } = req.query
+  const offset = (Number(page) - 1) * Number(limit)
 
   let query = `
     SELECT ds.*, u.name AS doctor_name, s.name AS specialization_name
@@ -88,18 +93,19 @@ const getSlots = (req, res) => {
     LEFT JOIN specializations s ON ds.specialization_id = s.id
     WHERE 1=1
   `
-  let params = []
+  const params = []
 
-  if (doctor_id) { query += ` AND ds.doctor_id = ?`; params.push(doctor_id) }
-  if (specialization_id) { query += ` AND ds.specialization_id = ?`; params.push(specialization_id) }
-  if (slot_date) { query += ` AND ds.slot_date = ?`; params.push(slot_date) }
-  if (slot_status) { query += ` AND ds.status = ?`; params.push(slot_status) }
+  if (doctor_id) { query += ' AND ds.doctor_id = ?'; params.push(doctor_id) }
+  if (specialization_id) { query += ' AND ds.specialization_id = ?'; params.push(specialization_id) }
+  if (slot_date) { query += ' AND ds.slot_date = ?'; params.push(slot_date) }
+  if (slot_status) { query += ' AND ds.status = ?'; params.push(slot_status) }
 
-  query += ` ORDER BY ds.slot_date ASC, ds.start_time ASC LIMIT ? OFFSET ?`
+  query += ' ORDER BY ds.slot_date ASC, ds.start_time ASC LIMIT ? OFFSET ?'
   params.push(Number(limit), Number(offset))
 
   db.all(query, params, (err, rows) => {
     if (err) {
+      console.error('getSlots error:', err)
       return res.status(500).json({ message: 'Failed to fetch slots' })
     }
     const updatedRows = rows.map(slot => ({
@@ -124,9 +130,9 @@ const getAvailableSlots = (req, res) => {
       AND ds.status = 'AVAILABLE'
     ORDER BY ds.slot_date ASC, ds.start_time ASC
   `
-
   db.all(query, [], (err, rows) => {
     if (err) {
+      console.error('getAvailableSlots error:', err)
       return res.status(500).json({ message: 'Failed to fetch available slots' })
     }
     return res.json({ slots: rows })

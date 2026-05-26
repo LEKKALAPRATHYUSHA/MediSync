@@ -2,15 +2,26 @@ const db = require('./db')
 const fs = require('fs')
 const path = require('path')
 
-const schema = fs.readFileSync(
-  path.join(__dirname, 'schema.sql'),
-  'utf-8'
-)
+const schemaPath = path.join(__dirname, 'schema.sql')
+const schema = fs.readFileSync(schemaPath, 'utf-8')
 
-db.exec(schema, (err) => {
+// Check if users table exists (i.e., DB already initialized)
+db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
   if (err) {
-    console.log('Schema Error:', err.message)
+    console.error('Init check error:', err.message)
+    return
+  }
+
+  if (!row) {
+    // Fresh DB - run schema
+    db.exec(schema, (execErr) => {
+      if (execErr) {
+        console.error('Schema Error:', execErr.message)
+      } else {
+        console.log('Database initialized with schema and seed data')
+      }
+    })
   } else {
-    console.log('Database initialized successfully')
+    console.log('Database already initialized')
   }
 })

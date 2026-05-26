@@ -4,31 +4,23 @@ import { registerUser } from '../services/authService'
 
 function Register() {
   const navigate = useNavigate()
-
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'patient',
-    phone: ''
-  })
-
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'patient', phone: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
     try {
       setLoading(true)
-      setError('')
-      await registerUser(formData)
+      await registerUser(form)
       navigate('/login')
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed')
+      setError(err?.response?.data?.message || 'Registration failed')
     } finally {
       setLoading(false)
     }
@@ -40,15 +32,19 @@ function Register() {
         <h1>MediSync</h1>
         <p>Create your account</p>
 
-        {error && <p style={{ color: '#dc2626', marginBottom: '12px', textAlign: 'center' }}>{error}</p>}
+        {error && (
+          <p style={{ color: '#dc2626', marginBottom: '12px', textAlign: 'center', fontSize: '14px' }}>
+            {error}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
-          <input type="text" name="name" placeholder="Full Name" onChange={handleChange} required />
-          <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
-          <input type="password" name="password" placeholder="Password (min 6 chars)" onChange={handleChange} required />
-          <input type="tel" name="phone" placeholder="Phone Number" onChange={handleChange} />
+          <input type="text" name="name" placeholder="Full Name *" value={form.name} onChange={handleChange} required />
+          <input type="email" name="email" placeholder="Email *" value={form.email} onChange={handleChange} required />
+          <input type="password" name="password" placeholder="Password (min 6 chars) *" value={form.password} onChange={handleChange} required />
+          <input type="tel" name="phone" placeholder="Phone Number" value={form.phone} onChange={handleChange} />
 
-          <select name="role" onChange={handleChange} value={formData.role}>
+          <select name="role" value={form.role} onChange={handleChange}>
             <option value="patient">Patient</option>
             <option value="doctor">Doctor</option>
             <option value="receptionist">Receptionist</option>

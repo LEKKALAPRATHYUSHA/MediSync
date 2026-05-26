@@ -4,7 +4,7 @@ const authorizeRoles = (...roles) => {
       return res.status(401).json({ message: 'Unauthorized access' })
     }
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access forbidden: insufficient role' })
+      return res.status(403).json({ message: `Access forbidden: requires one of [${roles.join(', ')}]` })
     }
     next()
   }

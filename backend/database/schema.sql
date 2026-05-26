@@ -38,8 +38,6 @@ CREATE TABLE doctor_slots (
     FOREIGN KEY (specialization_id) REFERENCES specializations(id)
 );
 
--- FIX: patient_id is now nullable so guest/receptionist bookings work
--- FIX: UNIQUE on patient_email + slot_id to match the controller duplicate check
 CREATE TABLE appointments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     patient_id INTEGER,
@@ -61,7 +59,7 @@ CREATE TABLE appointments (
 
 CREATE TABLE patient_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    appointment_id INTEGER NOT NULL,
+    appointment_id INTEGER NOT NULL UNIQUE,
     diagnosis TEXT,
     prescription TEXT,
     consultation_notes TEXT,
@@ -84,13 +82,13 @@ INSERT INTO specializations (name) VALUES
     ('Cardiology'),('Dermatology'),('Neurology'),('Orthopedics'),('Pediatrics');
 
 -- Passwords below are bcrypt of "password123"
-INSERT INTO users (name, email, password, role, phone) VALUES
-    ('Admin User',    'admin@test.com',       '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin',        '9999999991'),
-    ('Receptionist',  'reception@test.com',   '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'receptionist', '9999999992'),
-    ('Dr. Sharma',    'doctor@test.com',       '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'doctor',       '9999999993'),
-    ('Patient User',  'patient@test.com',      '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'patient',      '9999999994');
+INSERT INTO users (name, email, password, role, phone, specialization_id) VALUES
+    ('Admin User',   'admin@test.com',      '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin',        '9999999991', NULL),
+    ('Receptionist', 'reception@test.com',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'receptionist', '9999999992', NULL),
+    ('Dr. Sharma',   'doctor@test.com',     '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'doctor',       '9999999993', 1),
+    ('Patient User', 'patient@test.com',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'patient',      '9999999994', NULL);
 
--- FIX: use 24-hour HH:MM time format consistently
+-- Future slot so it doesn't expire
 INSERT INTO doctor_slots (doctor_id, specialization_id, slot_date, start_time, end_time, consultation_fee, max_patients)
 VALUES (3, 1, '2026-12-15', '10:00', '11:00', 500, 5);
 

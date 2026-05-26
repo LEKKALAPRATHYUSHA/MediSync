@@ -1,33 +1,19 @@
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/useAuth'
 
 function Navbar() {
-
+  const { logout } = useAuth()
   const navigate = useNavigate()
 
-  // ==========================
-  // LOGOUT
-  // ==========================
   const handleLogout = () => {
-
-    localStorage.removeItem('user')
-
+    logout()
     navigate('/login')
   }
 
   return (
-
     <div className="navbar">
-
-      <h2>
-        Healthcare Management System
-      </h2>
-
-      <button
-        onClick={handleLogout}
-      >
-        Logout
-      </button>
-
+      <h2>Healthcare Management System</h2>
+      <button onClick={handleLogout}>Logout</button>
     </div>
   )
 }

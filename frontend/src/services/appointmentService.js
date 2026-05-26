@@ -1,5 +1,8 @@
 import axiosInstance from '../api/axiosInstance'
 
+// ========================
+// APPOINTMENT SERVICE
+// ========================
 export const bookAppointment = async (data) => {
   const response = await axiosInstance.post('/appointments', data)
   return response.data
@@ -11,8 +14,7 @@ export const getAppointments = async (params = {}) => {
 }
 
 export const getFilteredAppointments = async (filters) => {
-  const query = new URLSearchParams(filters).toString()
-  const response = await axiosInstance.get(`/appointments/filter?${query}`)
+  const response = await axiosInstance.get('/appointments/filter', { params: filters })
   return response.data
 }
 

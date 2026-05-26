@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import axios from 'axios'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import { loginUser } from '../services/authService'
 
 function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -14,14 +13,14 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
     try {
       setLoading(true)
-      setError('')
-      const response = await axios.post('http://localhost:5000/api/auth/login', { email, password })
-      login(response.data.user, response.data.token)
+      const data = await loginUser({ email, password })
+      login(data.user, data.token)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed')
+      setError(err?.response?.data?.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -33,7 +32,11 @@ function Login() {
         <h1>MediSync</h1>
         <p>Sign in to your account</p>
 
-        {error && <p style={{ color: '#dc2626', marginBottom: '12px', textAlign: 'center' }}>{error}</p>}
+        {error && (
+          <p style={{ color: '#dc2626', marginBottom: '12px', textAlign: 'center', fontSize: '14px' }}>
+            {error}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           <input
@@ -56,14 +59,19 @@ function Login() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: '16px', color: '#64748b', fontSize: '14px' }}>
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link to="/register" style={{ color: '#2563eb' }}>Register</Link>
         </p>
 
-        <div style={{ marginTop: '16px', padding: '12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '12px', color: '#64748b' }}>
+        <div style={{
+          marginTop: '20px', padding: '14px', background: '#f1f5f9',
+          borderRadius: '8px', fontSize: '12px', color: '#475569', lineHeight: '1.7'
+        }}>
           <strong>Demo credentials (password: password123)</strong><br />
-          Admin: admin@test.com | Doctor: doctor@test.com<br />
-          Patient: patient@test.com | Reception: reception@test.com
+          Admin: admin@test.com<br />
+          Doctor: doctor@test.com<br />
+          Patient: patient@test.com<br />
+          Reception: reception@test.com
         </div>
       </div>
     </div>

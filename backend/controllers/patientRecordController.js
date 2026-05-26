@@ -1,69 +1,46 @@
-const { generatePatientReport } = require('../utils/pdfGenerator')
 const db = require('../database/db')
+const { generatePatientReport } = require('../utils/pdfGenerator')
 
 // =====================================
-// CREATE PATIENT RECORD
+// CREATE OR UPDATE PATIENT RECORD
 // =====================================
 const createPatientRecord = (req, res) => {
   const { appointment_id, diagnosis, prescription, consultation_notes } = req.body
 
   if (!appointment_id) {
-    return res.status(400).json({ message: 'Appointment ID is required' })
+    return res.status(400).json({ message: 'appointment_id is required' })
   }
 
-  const appointmentQuery = `SELECT * FROM appointments WHERE id = ?`
+  db.get('SELECT * FROM appointments WHERE id = ?', [appointment_id], (err, appointment) => {
+    if (err) return res.status(500).json({ message: 'Database error' })
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' })
 
-  db.get(appointmentQuery, [appointment_id], (err, appointment) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database error' })
-    }
-    if (!appointment) {
-      return res.status(404).json({ message: 'Appointment not found' })
-    }
-
-    // FIX: prevent duplicate records for the same appointment
-    const existingQuery = `SELECT * FROM patient_records WHERE appointment_id = ?`
-    db.get(existingQuery, [appointment_id], (err, existing) => {
-      if (err) {
-        return res.status(500).json({ message: 'Database error' })
-      }
+    db.get('SELECT * FROM patient_records WHERE appointment_id = ?', [appointment_id], (err2, existing) => {
+      if (err2) return res.status(500).json({ message: 'Database error' })
 
       if (existing) {
-        // Update instead of insert
-        const updateQuery = `
-          UPDATE patient_records
-          SET diagnosis = ?, prescription = ?, consultation_notes = ?
-          WHERE appointment_id = ?
-        `
-        db.run(updateQuery, [
-          diagnosis || '',
-          prescription || '',
-          consultation_notes || '',
-          appointment_id
-        ], function (err) {
-          if (err) {
-            return res.status(500).json({ message: 'Failed to update patient record' })
+        db.run(
+          'UPDATE patient_records SET diagnosis = ?, prescription = ?, consultation_notes = ? WHERE appointment_id = ?',
+          [diagnosis || '', prescription || '', consultation_notes || '', appointment_id],
+          function (updateErr) {
+            if (updateErr) return res.status(500).json({ message: 'Failed to update patient record' })
+            return res.json({ message: 'Patient record updated successfully', record_id: existing.id })
           }
-          return res.json({ message: 'Patient record updated successfully', record_id: existing.id })
-        })
+        )
         return
       }
 
-      const insertQuery = `
-        INSERT INTO patient_records (appointment_id, diagnosis, prescription, consultation_notes)
-        VALUES (?, ?, ?, ?)
-      `
-      db.run(insertQuery, [
-        appointment_id,
-        diagnosis || '',
-        prescription || '',
-        consultation_notes || ''
-      ], function (err) {
-        if (err) {
-          return res.status(500).json({ message: 'Failed to create patient record' })
+      db.run(
+        'INSERT INTO patient_records (appointment_id, diagnosis, prescription, consultation_notes) VALUES (?, ?, ?, ?)',
+        [appointment_id, diagnosis || '', prescription || '', consultation_notes || ''],
+        function (insertErr) {
+          if (insertErr) {
+            console.error('Patient record insert error:', insertErr)
+            return res.status(500).json({ message: 'Failed to create patient record' })
+          }
+          return res.status(201).json({ message: 'Patient record created successfully', record_id: this.lastID })
         }
-        return res.status(201).json({ message: 'Patient record created successfully', record_id: this.lastID })
-      })
+      )
     })
   })
 }
@@ -77,11 +54,9 @@ const getPatientRecords = (req, res) => {
   let query = `
     SELECT
       pr.*,
-      a.patient_name,
-      a.patient_email,
-      a.appointment_status,
-      ds.slot_date,
-      ds.start_time,
+      a.patient_name, a.patient_email, a.patient_age, a.patient_gender,
+      a.symptoms, a.appointment_status,
+      ds.slot_date, ds.start_time,
       u.name AS doctor_name
     FROM patient_records pr
     JOIN appointments a ON pr.appointment_id = a.id
@@ -89,18 +64,14 @@ const getPatientRecords = (req, res) => {
     JOIN users u ON ds.doctor_id = u.id
     WHERE 1=1
   `
-  let params = []
+  const params = []
 
-  if (appointment_id) {
-    query += ` AND pr.appointment_id = ?`
-    params.push(appointment_id)
-  }
-
-  query += ` ORDER BY pr.created_at DESC`
+  if (appointment_id) { query += ' AND pr.appointment_id = ?'; params.push(appointment_id) }
+  query += ' ORDER BY pr.created_at DESC'
 
   db.all(query, params, (err, records) => {
     if (err) {
-      console.log(err)
+      console.error('getPatientRecords error:', err)
       return res.status(500).json({ message: 'Failed to fetch patient records' })
     }
     return res.json({ total: records.length, records })
@@ -114,26 +85,15 @@ const updatePatientRecord = (req, res) => {
   const { id } = req.params
   const { diagnosis, prescription, consultation_notes } = req.body
 
-  const updateQuery = `
-    UPDATE patient_records
-    SET diagnosis = ?, prescription = ?, consultation_notes = ?
-    WHERE id = ?
-  `
-
-  db.run(updateQuery, [
-    diagnosis || '',
-    prescription || '',
-    consultation_notes || '',
-    id
-  ], function (err) {
-    if (err) {
-      return res.status(500).json({ message: 'Failed to update patient record' })
+  db.run(
+    'UPDATE patient_records SET diagnosis = ?, prescription = ?, consultation_notes = ? WHERE id = ?',
+    [diagnosis || '', prescription || '', consultation_notes || '', id],
+    function (err) {
+      if (err) return res.status(500).json({ message: 'Failed to update patient record' })
+      if (this.changes === 0) return res.status(404).json({ message: 'Patient record not found' })
+      return res.json({ message: 'Patient record updated successfully' })
     }
-    if (this.changes === 0) {
-      return res.status(404).json({ message: 'Patient record not found' })
-    }
-    return res.json({ message: 'Patient record updated successfully' })
-  })
+  )
 }
 
 // =====================================
@@ -145,13 +105,8 @@ const downloadPatientReport = (req, res) => {
   const query = `
     SELECT
       pr.*,
-      a.patient_name,
-      a.patient_email,
-      a.patient_age,
-      a.patient_gender,
-      a.symptoms,
-      ds.slot_date,
-      ds.start_time,
+      a.patient_name, a.patient_email, a.patient_age, a.patient_gender, a.symptoms,
+      ds.slot_date, ds.start_time,
       u.name AS doctor_name
     FROM patient_records pr
     JOIN appointments a ON pr.appointment_id = a.id
@@ -159,22 +114,11 @@ const downloadPatientReport = (req, res) => {
     JOIN users u ON ds.doctor_id = u.id
     WHERE pr.id = ?
   `
-
   db.get(query, [id], (err, row) => {
-    if (err) {
-      return res.status(500).json({ message: 'Failed to generate report' })
-    }
-    if (!row) {
-      return res.status(404).json({ message: 'Patient record not found' })
-    }
+    if (err) return res.status(500).json({ message: 'Failed to generate report' })
+    if (!row) return res.status(404).json({ message: 'Patient record not found' })
     generatePatientReport(res, row)
   })
 }
 
-// FIX: single module.exports with all four functions
-module.exports = {
-  createPatientRecord,
-  getPatientRecords,
-  updatePatientRecord,
-  downloadPatientReport
-}
+module.exports = { createPatientRecord, getPatientRecords, updatePatientRecord, downloadPatientReport }

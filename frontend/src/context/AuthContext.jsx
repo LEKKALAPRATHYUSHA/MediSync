@@ -14,7 +14,6 @@ export const AuthProvider = ({ children }) => {
   })
 
   const login = (userData, token) => {
-    // Store token inside user object AND separately for axiosInstance
     const userWithToken = { ...userData, token }
     localStorage.setItem('user', JSON.stringify(userWithToken))
     setUser(userWithToken)
@@ -25,18 +24,10 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
-  const hasRole = (role) => user?.role === role
+  const hasRole = (...roles) => roles.includes(user?.role)
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login,
-        logout,
-        hasRole,
-        isAuthenticated: !!user
-      }}
-    >
+    <AuthContext.Provider value={{ user, login, logout, hasRole, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,7 +1,6 @@
 const express = require('express')
 const router = express.Router()
 const db = require('../database/db')
-
 const {
   bookAppointment,
   getAppointments,
@@ -14,6 +13,7 @@ router.get('/', getAppointments)
 router.get('/filter', getFilteredAppointments)
 router.put('/:id/status', updateAppointmentStatus)
 
+// Appointment report (single appointment with slot info)
 router.get('/report/:id', (req, res) => {
   const { id } = req.params
   const query = `

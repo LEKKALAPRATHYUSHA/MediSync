@@ -1,33 +1,16 @@
 const express = require('express')
 const router = express.Router()
-
-const {
-  createSlot,
-  getSlots,
-  getAvailableSlots
-} = require('../controllers/slotController')
-
+const { createSlot, getSlots, getAvailableSlots } = require('../controllers/slotController')
 const verifyToken = require('../middleware/authMiddleware')
 const authorizeRoles = require('../middleware/roleMiddleware')
 
-// ============================
-// CREATE SLOT (DOCTOR / ADMIN)
-// ============================
-router.post(
-  '/',
-  verifyToken,
-  authorizeRoles('doctor', 'admin'),
-  createSlot
-)
+// Available slots - no auth needed (for booking UI)
+router.get('/available', getAvailableSlots)
 
-// ============================
-// GET ALL SLOTS (ADMIN VIEW)
-// ============================
+// All slots - no auth needed
 router.get('/', getSlots)
 
-// ============================
-// GET ONLY AVAILABLE SLOTS (FOR BOOKING UI)
-// ============================
-router.get('/available', getAvailableSlots)
+// Create slot - requires auth + doctor/admin/receptionist role
+router.post('/', verifyToken, authorizeRoles('doctor', 'admin', 'receptionist'), createSlot)
 
 module.exports = router

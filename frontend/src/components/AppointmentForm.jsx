@@ -1,79 +1,110 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { bookAppointment } from '../services/appointmentService'
-import axiosInstance from '../api/axiosInstance'
+import { getAvailableSlots } from '../services/slotService'
+import { useAuth } from '../context/useAuth'
 
 function AppointmentForm({ refreshAppointments }) {
+  const { user } = useAuth()
+
   const [form, setForm] = useState({
-    patient_id: '',
     slot_id: '',
-    patient_name: '',
-    patient_email: '',
-    patient_phone: '',
+    patient_name: user?.name || '',
+    patient_email: user?.email || '',
+    patient_phone: user?.phone || '',
     patient_age: '',
     patient_gender: '',
     symptoms: ''
   })
 
   const [availableSlots, setAvailableSlots] = useState([])
-  const [slotsError, setSlotsError] = useState('')   // ← new: surface slot-load errors
+  const [slotsLoading, setSlotsLoading] = useState(true)
+  const [slotsError, setSlotsError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const fetchSlots = async () => {
+  const fetchSlots = useCallback(async () => {
+    setSlotsLoading(true)
+    setSlotsError('')
     try {
-      setSlotsError('')
-      const res = await axiosInstance.get('/doctor-slots/available')
-      console.log('Slots response:', res.data)        // ← verify shape in console
-      setAvailableSlots(res.data.slots || [])
+      const data = await getAvailableSlots()
+      setAvailableSlots(data.slots || [])
     } catch (err) {
-      console.error('Failed to load slots:', err)
       setSlotsError(
         err?.response?.data?.message ||
-        `Slots failed to load (${err?.response?.status ?? 'network error'})`
+        `Failed to load slots (${err?.response?.status ?? 'network error'})`
       )
+    } finally {
+      setSlotsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  fetchSlots()
-}, [])
+    let cancelled = false
+
+    const load = async () => {
+      setSlotsLoading(true)
+      setSlotsError('')
+      try {
+        const data = await getAvailableSlots()
+        if (!cancelled) setAvailableSlots(data.slots || [])
+      } catch (err) {
+        if (!cancelled)
+          setSlotsError(
+            err?.response?.data?.message ||
+            `Failed to load slots (${err?.response?.status ?? 'network error'})`
+          )
+      } finally {
+        if (!cancelled) setSlotsLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    if (!form.slot_id) {
+      setError('Please select a slot')
+      return
+    }
+
     try {
       setLoading(true)
-      setError('')
-      setSuccess('')
-
       const payload = {
-        ...form,
-        patient_id: form.patient_id ? Number(form.patient_id) : null,
         slot_id: Number(form.slot_id),
-        patient_age: Number(form.patient_age)
+        patient_name: form.patient_name,
+        patient_email: form.patient_email,
+        patient_phone: form.patient_phone,
+        patient_age: Number(form.patient_age),
+        patient_gender: form.patient_gender,
+        symptoms: form.symptoms,
+        patient_id: user?.id || null
       }
 
       const res = await bookAppointment(payload)
-      setSuccess(res.message || 'Appointment booked successfully')
+      setSuccess(res.message || 'Appointment booked successfully!')
 
       setForm({
-        patient_id: '',
         slot_id: '',
-        patient_name: '',
-        patient_email: '',
-        patient_phone: '',
+        patient_name: user?.name || '',
+        patient_email: user?.email || '',
+        patient_phone: user?.phone || '',
         patient_age: '',
         patient_gender: '',
         symptoms: ''
       })
 
-      await fetchSlots()           // refresh slots after booking
-      refreshAppointments()
+      await fetchSlots()
+      if (refreshAppointments) refreshAppointments()
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to book appointment')
     } finally {
@@ -85,32 +116,27 @@ function AppointmentForm({ refreshAppointments }) {
     <div className="appointment-form">
       <h2>Book Appointment</h2>
 
-      {error   && <p style={{ color: 'red',   marginBottom: '10px' }}>{error}</p>}
+      {error && <p style={{ color: 'red', marginBottom: '10px' }}>{error}</p>}
       {success && <p style={{ color: 'green', marginBottom: '10px' }}>{success}</p>}
 
       <form onSubmit={handleSubmit}>
-
-        {/* Slot selector — shows error inline if load failed */}
         {slotsError ? (
-          <p style={{ color: 'red', marginBottom: '8px' }}>
-            ⚠ {slotsError} —{' '}
-            <button type="button" onClick={fetchSlots}>Retry</button>
-          </p>
+          <div style={{ marginBottom: '12px' }}>
+            <p style={{ color: 'red' }}>⚠ {slotsError}</p>
+            <button type="button" onClick={fetchSlots} style={{ marginTop: '6px' }}>
+              Retry
+            </button>
+          </div>
         ) : (
-          <select
-            name="slot_id"
-            value={form.slot_id}
-            onChange={handleChange}
-            required
-          >
+          <select name="slot_id" value={form.slot_id} onChange={handleChange} required>
             <option value="">
-              {availableSlots.length === 0 ? 'Loading slots…' : 'Select a slot'}
+              {slotsLoading ? 'Loading slots…' : availableSlots.length === 0 ? 'No available slots' : 'Select a slot'}
             </option>
-            {availableSlots.map(slot => (
+            {availableSlots.map((slot) => (
               <option key={slot.id} value={slot.id}>
                 {slot.doctor_name} — {slot.slot_date} {slot.start_time}–{slot.end_time}
                 {slot.specialization_name ? ` (${slot.specialization_name})` : ''}
-                {' '}| ₹{slot.consultation_fee} | {slot.max_patients - slot.booked_count} spots left
+                {' '}| ₹{slot.consultation_fee} | {slot.max_patients - slot.booked_count} spot(s) left
               </option>
             ))}
           </select>
@@ -118,7 +144,7 @@ function AppointmentForm({ refreshAppointments }) {
 
         <input
           name="patient_name"
-          placeholder="Full Name"
+          placeholder="Full Name *"
           value={form.patient_name}
           onChange={handleChange}
           required
@@ -127,7 +153,7 @@ function AppointmentForm({ refreshAppointments }) {
         <input
           name="patient_email"
           type="email"
-          placeholder="Email"
+          placeholder="Email *"
           value={form.patient_email}
           onChange={handleChange}
           required
@@ -135,7 +161,7 @@ function AppointmentForm({ refreshAppointments }) {
 
         <input
           name="patient_phone"
-          placeholder="Phone Number"
+          placeholder="Phone Number *"
           value={form.patient_phone}
           onChange={handleChange}
           required
@@ -144,7 +170,7 @@ function AppointmentForm({ refreshAppointments }) {
         <input
           name="patient_age"
           type="number"
-          placeholder="Age"
+          placeholder="Age *"
           min="1"
           max="120"
           value={form.patient_age}
@@ -152,13 +178,8 @@ function AppointmentForm({ refreshAppointments }) {
           required
         />
 
-        <select
-          name="patient_gender"
-          value={form.patient_gender}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Gender</option>
+        <select name="patient_gender" value={form.patient_gender} onChange={handleChange} required>
+          <option value="">Select Gender *</option>
           <option value="Male">Male</option>
           <option value="Female">Female</option>
           <option value="Other">Other</option>
@@ -172,8 +193,8 @@ function AppointmentForm({ refreshAppointments }) {
           rows={3}
         />
 
-        <button type="submit" disabled={loading}>
-          {loading ? 'Booking...' : 'Book Appointment'}
+        <button type="submit" disabled={loading || slotsLoading}>
+          {loading ? 'Booking…' : 'Book Appointment'}
         </button>
       </form>
     </div>
